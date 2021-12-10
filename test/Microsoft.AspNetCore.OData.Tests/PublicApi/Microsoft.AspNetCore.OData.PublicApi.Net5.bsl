@@ -2923,6 +2923,24 @@ public class Microsoft.AspNetCore.OData.Query.Validator.TopQueryValidator {
 	public virtual void Validate (Microsoft.AspNetCore.OData.Query.TopQueryOption topQueryOption, Microsoft.AspNetCore.OData.Query.Validator.ODataValidationSettings validationSettings)
 }
 
+public interface Microsoft.AspNetCore.OData.Query.Wrapper.IAggregationPropertyContainer`1 {
+	string Name  { public abstract get; public abstract set; }
+	T NestedValue  { public abstract get; public abstract set; }
+	Microsoft.AspNetCore.OData.Query.Wrapper.IAggregationPropertyContainer`1 Next  { public abstract get; public abstract set; }
+	object Value  { public abstract get; public abstract set; }
+
+	void ToDictionaryCore (System.Collections.Generic.Dictionary`2[[System.String],[System.Object]] dictionary, Microsoft.AspNetCore.OData.Query.Container.IPropertyMapper propertyMapper, bool includeAutoSelected)
+}
+
+public interface Microsoft.AspNetCore.OData.Query.Wrapper.IFlatteningWrapper`1 {
+	T Source  { public abstract get; public abstract set; }
+}
+
+public interface Microsoft.AspNetCore.OData.Query.Wrapper.IGroupByWrapper`1 {
+	T Container  { public abstract get; public abstract set; }
+	T GroupByContainer  { public abstract get; public abstract set; }
+}
+
 public interface Microsoft.AspNetCore.OData.Query.Wrapper.ISelectExpandWrapper {
 	System.Collections.Generic.IDictionary`2[[System.String],[System.Object]] ToDictionary ()
 	System.Collections.Generic.IDictionary`2[[System.String],[System.Object]] ToDictionary (System.Func`3[[Microsoft.OData.Edm.IEdmModel],[Microsoft.OData.Edm.IEdmStructuredType],[Microsoft.AspNetCore.OData.Query.Container.IPropertyMapper]] propertyMapperProvider)
