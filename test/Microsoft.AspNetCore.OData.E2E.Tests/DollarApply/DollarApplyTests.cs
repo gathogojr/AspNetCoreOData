@@ -8,11 +8,13 @@
 // Conditional compilation due to known bug affecting EF Core and lower
 #if NET6_0_OR_GREATER
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -22,7 +24,10 @@ using Microsoft.AspNetCore.OData.Query.Expressions;
 using Microsoft.AspNetCore.OData.TestCommon;
 using Microsoft.AspNetCore.OData.TestCommon.Query.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OData.Edm;
+using Microsoft.OData.UriParser;
 using Newtonsoft.Json.Linq;
 using Xunit;
 
@@ -2058,6 +2063,242 @@ namespace Microsoft.AspNetCore.OData.E2E.Tests.DollarApply
         }
 
         #endregion https://github.com/OData/AspNetCoreOData/issues/420 & Related
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeWithCommonOperatorsAsync(string routePrefix)
+        {
+            // Arrange
+            // Tax = Amount * Product/TaxRate, Discount = Amount <F7> 10, TotalPrice = Amount + Tax, SalePrice = TotalPrice - Discount
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute((Amount add (Amount mul Product/TaxRate)) sub (Amount div 10) as SalePrice)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Equal(8, result.Count);
+            Assert.Matches("\\{\"SalePrice\":1\\.04(?:0+)?,\"Id\":1,\"Year\":2022,\"Quarter\":\"2022-1\",\"Amount\":1(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.92(?:0+)?,\"Id\":2,\"Year\":2022,\"Quarter\":\"2022-2\",\"Amount\":2(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":3\\.84(?:0+)?,\"Id\":3,\"Year\":2022,\"Quarter\":\"2022-3\",\"Amount\":4(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":7\\.68(?:0+)?,\"Id\":4,\"Year\":2022,\"Quarter\":\"2022-1\",\"Amount\":8(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":4\\.16(?:0+)?,\"Id\":5,\"Year\":2022,\"Quarter\":\"2022-4\",\"Amount\":4(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.92(?:0+)?,\"Id\":6,\"Year\":2022,\"Quarter\":\"2022-2\",\"Amount\":2(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.04(?:0+)?,\"Id\":7,\"Year\":2022,\"Quarter\":\"2022-3\",\"Amount\":1(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":2\\.08(?:0+)?,\"Id\":8,\"Year\":2022,\"Quarter\":\"2022-4\",\"Amount\":2(?:\\.0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeWithCommonOperatorsThenAggregateAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute((Amount add (Amount mul Product/TaxRate)) sub (Amount div 10) as SalePrice)/aggregate(SalePrice with average as AverageSalePrice)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Single(result);
+            Assert.Matches("\\{\"AverageSalePrice\":2\\.96(?:0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeWithCommonOperatorsThenGroupByAggregateAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute((Amount add (Amount mul Product/TaxRate)) sub (Amount div 10) as SalePrice)/groupby((Quarter),aggregate(SalePrice with average as QtrAvgSalePrice))";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Equal(4, result.Count);
+            Assert.Matches("\\{\"Quarter\":\"2022-1\",\"QtrAvgSalePrice\":4\\.36(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-2\",\"QtrAvgSalePrice\":1\\.92(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-3\",\"QtrAvgSalePrice\":2\\.44(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-4\",\"QtrAvgSalePrice\":3\\.12(?:0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeChainingAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute(Amount mul Product/TaxRate as Tax)" +
+                "/compute(Amount add Tax as Total,Amount div 10 as Discount)" +
+                "/compute(Total sub Discount as SalePrice)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Equal(8, result.Count);
+            Assert.Matches("\\{\"SalePrice\":1\\.04(?:0+)?,\"Discount\":0\\.1(?:0+)?,\"Total\":1\\.14(?:0+)?,\"Tax\":0\\.14(?:0+)?,\"Id\":1,\"Year\":2022,\"Quarter\":\"2022-1\",\"Amount\":1(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.92(?:0+)?,\"Discount\":0\\.2(?:0+)?,\"Total\":2\\.12(?:0+)?,\"Tax\":0\\.12(?:0+)?,\"Id\":2,\"Year\":2022,\"Quarter\":\"2022-2\",\"Amount\":2(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":3\\.84(?:0+)?,\"Discount\":0\\.4(?:0+)?,\"Total\":4\\.24(?:0+)?,\"Tax\":0\\.24(?:0+)?,\"Id\":3,\"Year\":2022,\"Quarter\":\"2022-3\",\"Amount\":4(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":7\\.68(?:0+)?,\"Discount\":0\\.8(?:0+)?,\"Total\":8\\.48(?:0+)?,\"Tax\":0\\.48(?:0+)?,\"Id\":4,\"Year\":2022,\"Quarter\":\"2022-1\",\"Amount\":8(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":4\\.16(?:0+)?,\"Discount\":0\\.4(?:0+)?,\"Total\":4\\.56(?:0+)?,\"Tax\":0\\.56(?:0+)?,\"Id\":5,\"Year\":2022,\"Quarter\":\"2022-4\",\"Amount\":4(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.92(?:0+)?,\"Discount\":0\\.2(?:0+)?,\"Total\":2\\.12(?:0+)?,\"Tax\":0\\.12(?:0+)?,\"Id\":6,\"Year\":2022,\"Quarter\":\"2022-2\",\"Amount\":2(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":1\\.04(?:0+)?,\"Discount\":0\\.1(?:0+)?,\"Total\":1\\.14(?:0+)?,\"Tax\":0\\.14(?:0+)?,\"Id\":7,\"Year\":2022,\"Quarter\":\"2022-3\",\"Amount\":1(?:\\.0+)?\\}", content);
+            Assert.Matches("\\{\"SalePrice\":2\\.08(?:0+)?,\"Discount\":0\\.2(?:0+)?,\"Total\":2\\.28(?:0+)?,\"Tax\":0\\.28(?:0+)?,\"Id\":8,\"Year\":2022,\"Quarter\":\"2022-4\",\"Amount\":2(?:\\.0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeChainingThenAggregateAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute(Amount mul Product/TaxRate as Tax)" +
+                "/compute(Amount add Tax as Total,Amount div 10 as Discount)" +
+                "/compute(Total sub Discount as SalePrice)" +
+                "/aggregate(SalePrice with average as AverageSalePrice,Amount with average as AverageAmount)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Single(result);
+            Assert.Matches("\\{\"AverageAmount\":3(?:\\.0+)?,\"AverageSalePrice\":2\\.96(?:0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeChainingThenGroupByAndAggregateAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute(Amount mul Product/TaxRate as Tax)" +
+                "/compute(Amount add Tax as Total,Amount div 10 as Discount)" +
+                "/compute(Total sub Discount as SalePrice)" +
+                "/groupby((Quarter),aggregate(SalePrice with average as QtrAvgSalePrice,Amount with average as QtrAvgAmount))";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Equal(4, result.Count);
+            Assert.Matches("\\{\"Quarter\":\"2022-1\",\"QtrAvgAmount\":4\\.5(?:0+)?,\"QtrAvgSalePrice\":4\\.36(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-2\",\"QtrAvgAmount\":2(?:\\.0+)?,\"QtrAvgSalePrice\":1\\.92(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-3\",\"QtrAvgAmount\":2\\.5(?:0+)?,\"QtrAvgSalePrice\":2\\.44(?:0+)?\\}", content);
+            Assert.Matches("\\{\"Quarter\":\"2022-4\",\"QtrAvgAmount\":3(?:\\.0+)?,\"QtrAvgSalePrice\":3\\.12(?:0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeThenAggregateThenComputeAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute(Amount mul Product/TaxRate as Tax,Amount div 10 as Discount)" +
+                "/aggregate(Tax with average as AverageTax,Discount with average as AverageDiscount,Amount with average as AverageAmount)" +
+                "/compute(AverageAmount add AverageTax as AverageTotal,AverageAmount add AverageTax sub AverageDiscount as AverageSalePrice)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Single(result);
+            Assert.Matches("\\{\"AverageSalePrice\":2\\.96(?:0+)?,\"AverageTotal\":3\\.26(?:0+)?,\"AverageAmount\":3(?:\\.0+)?,\"AverageDiscount\":0\\.3(?:0+)?,\"AverageTax\":0\\.26(?:0+)?\\}", content);
+        }
+
+        [Theory]
+        [InlineData("default")]
+        [InlineData("custom")]
+        [InlineData("defaultsql")]
+        [InlineData("customsql")]
+        public async Task TestComputeThenGroupByAndAggregateThenComputeAsync(string routePrefix)
+        {
+            // Arrange
+            var queryUrl = $"{routePrefix}/Sales?$apply=compute(Amount mul Product/TaxRate as Tax,Amount div 10 as Discount)" +
+                "/groupby((Quarter),aggregate(Tax with average as QtrAvgTax,Discount with average as QtrAvgDiscount,Amount with average as QtrAvgAmount))" +
+                "/compute(QtrAvgAmount add QtrAvgTax as QtrAvgTotal,QtrAvgAmount add QtrAvgTax sub QtrAvgDiscount as QtrAvgSalePrice)";
+
+            // Act
+            var response = await SetupAndFireRequestAsync(queryUrl);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.NotNull(response.Content);
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JObject.Parse(content).GetValue("value") as JArray;
+            Assert.NotNull(result);
+            Assert.Equal(4, result.Count);
+            Assert.Matches("\\{\"QtrAvgSalePrice\":4\\.36(?:0+)?,\"QtrAvgTotal\":4\\.81(?:0+)?,\"Quarter\":\"2022-1\",\"QtrAvgAmount\":4\\.5(?:0+)?,\"QtrAvgDiscount\":0\\.45(?:0+)?,\"QtrAvgTax\":0\\.31(?:0+)?\\}", content);
+            Assert.Matches("\\{\"QtrAvgSalePrice\":1\\.92(?:0+)?,\"QtrAvgTotal\":2\\.12(?:0+)?,\"Quarter\":\"2022-2\",\"QtrAvgAmount\":2(?:\\.0+)?,\"QtrAvgDiscount\":0\\.2(?:0+)?,\"QtrAvgTax\":0\\.12(?:0+)?\\}", content);
+            Assert.Matches("\\{\"QtrAvgSalePrice\":2\\.44(?:0+)?,\"QtrAvgTotal\":2\\.69(?:0+)?,\"Quarter\":\"2022-3\",\"QtrAvgAmount\":2\\.5(?:0+)?,\"QtrAvgDiscount\":0\\.25(?:0+)?,\"QtrAvgTax\":0\\.19(?:0+)?\\}", content);
+            Assert.Matches("\\{\"QtrAvgSalePrice\":3\\.12(?:0+)?,\"QtrAvgTotal\":3\\.42(?:0+)?,\"Quarter\":\"2022-4\",\"QtrAvgAmount\":3(?:\\.0+)?,\"QtrAvgDiscount\":0\\.3(?:0+)?,\"QtrAvgTax\":0\\.42(?:0+)?\\}", content);
+        }
 
         private Task<HttpResponseMessage> SetupAndFireRequestAsync(string queryUrl)
         {
