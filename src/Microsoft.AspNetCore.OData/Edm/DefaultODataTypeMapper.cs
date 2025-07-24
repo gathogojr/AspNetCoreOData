@@ -28,7 +28,7 @@ public class DefaultODataTypeMapper : IODataTypeMapper
     /// <summary>
     /// Creates a static instance for the Default type mapper.
     /// </summary>
-    internal static DefaultODataTypeMapper Default = new DefaultODataTypeMapper();
+    internal static readonly DefaultODataTypeMapper Default;
 
     #region Default_PrimitiveTypeMapping
     /// <summary>
@@ -47,6 +47,28 @@ public class DefaultODataTypeMapper : IODataTypeMapper
 
     static DefaultODataTypeMapper()
     {
+        Default = new DefaultODataTypeMapper();
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    protected DefaultODataTypeMapper()
+    {
+        // Default primitive type mappings
+        RegisterDefaultMappings();
+        // Spatial mappings
+        RegisterSpatialMappings();
+        // Non-standard mappings
+        RegisterNonStandardMappings();
+    }
+    #endregion
+
+    /// <summary>
+    /// Registers the default primitive type mappings.
+    /// </summary>
+    protected virtual void RegisterDefaultMappings()
+    {
         BuildReferenceTypeMapping<string>(EdmPrimitiveTypeKind.String);
         BuildValueTypeMapping<bool>(EdmPrimitiveTypeKind.Boolean);
         BuildValueTypeMapping<byte>(EdmPrimitiveTypeKind.Byte);
@@ -64,7 +86,26 @@ public class DefaultODataTypeMapper : IODataTypeMapper
         BuildValueTypeMapping<TimeSpan>(EdmPrimitiveTypeKind.Duration);
         BuildValueTypeMapping<Date>(EdmPrimitiveTypeKind.Date);
         BuildValueTypeMapping<TimeOfDay>(EdmPrimitiveTypeKind.TimeOfDay);
+    }
 
+    /// <summary>
+    /// Registers the non-standard primitive type mappings.
+    /// </summary>
+    protected virtual void RegisterNonStandardMappings()
+    {
+        BuildReferenceTypeMapping<XElement>(EdmPrimitiveTypeKind.String, isStandard: false);
+        BuildValueTypeMapping<ushort>(EdmPrimitiveTypeKind.Int32, isStandard: false);
+        BuildValueTypeMapping<uint>(EdmPrimitiveTypeKind.Int64, isStandard: false);
+        BuildValueTypeMapping<ulong>(EdmPrimitiveTypeKind.Int64, isStandard: false);
+        BuildReferenceTypeMapping<char[]>(EdmPrimitiveTypeKind.String, isStandard: false);
+        BuildValueTypeMapping<char>(EdmPrimitiveTypeKind.String, isStandard: false);
+        BuildValueTypeMapping<DateTime>(EdmPrimitiveTypeKind.DateTimeOffset, isStandard: false);
+        BuildValueTypeMapping<DateOnly>(EdmPrimitiveTypeKind.Date, isStandard: false);
+        BuildValueTypeMapping<TimeOnly>(EdmPrimitiveTypeKind.TimeOfDay, isStandard: false);
+    }
+
+    protected virtual void RegisterSpatialMappings()
+    {
         BuildReferenceTypeMapping<Geography>(EdmPrimitiveTypeKind.Geography);
         BuildReferenceTypeMapping<GeographyPoint>(EdmPrimitiveTypeKind.GeographyPoint);
         BuildReferenceTypeMapping<GeographyLineString>(EdmPrimitiveTypeKind.GeographyLineString);
@@ -81,19 +122,7 @@ public class DefaultODataTypeMapper : IODataTypeMapper
         BuildReferenceTypeMapping<GeometryMultiLineString>(EdmPrimitiveTypeKind.GeometryMultiLineString);
         BuildReferenceTypeMapping<GeometryMultiPoint>(EdmPrimitiveTypeKind.GeometryMultiPoint);
         BuildReferenceTypeMapping<GeometryMultiPolygon>(EdmPrimitiveTypeKind.GeometryMultiPolygon);
-
-        // non-standard mappings
-        BuildReferenceTypeMapping<XElement>(EdmPrimitiveTypeKind.String, isStandard: false);
-        BuildValueTypeMapping<ushort>(EdmPrimitiveTypeKind.Int32, isStandard: false);
-        BuildValueTypeMapping<uint>(EdmPrimitiveTypeKind.Int64, isStandard: false);
-        BuildValueTypeMapping<ulong>(EdmPrimitiveTypeKind.Int64, isStandard: false);
-        BuildReferenceTypeMapping<char[]>(EdmPrimitiveTypeKind.String, isStandard: false);
-        BuildValueTypeMapping<char>(EdmPrimitiveTypeKind.String, isStandard: false);
-        BuildValueTypeMapping<DateTime>(EdmPrimitiveTypeKind.DateTimeOffset, isStandard: false);
-        BuildValueTypeMapping<DateOnly>(EdmPrimitiveTypeKind.Date, isStandard: false);
-        BuildValueTypeMapping<TimeOnly>(EdmPrimitiveTypeKind.TimeOfDay, isStandard: false);
     }
-    #endregion
 
     #region IODataTypeMapper.GetPrimitiveType
     /// <summary>
@@ -395,7 +424,8 @@ public class DefaultODataTypeMapper : IODataTypeMapper
     private static IEnumerable<Type> GetMatchingTypes(string edmFullName, IAssemblyResolver assembliesResolver)
         => TypeHelper.GetLoadedTypes(assembliesResolver).Where(t => t.IsPublic && t.EdmFullName() == edmFullName);
 
-    private static void BuildTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard)
+     
+    protected virtual void BuildTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard)
     {
         Type type = typeof(T);
         bool isNullable = type.IsNullable();
@@ -427,7 +457,7 @@ public class DefaultODataTypeMapper : IODataTypeMapper
         }
     }
 
-    private static void BuildValueTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard = true)
+    protected virtual void BuildValueTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard = true)
         where T : struct
     {
         // Do not change the order for the nullable or non-nullable. Put nullable ahead of non-nullable.
@@ -437,7 +467,8 @@ public class DefaultODataTypeMapper : IODataTypeMapper
         BuildTypeMapping<T>(primitiveKind, isStandard);
     }
 
-    private static void BuildReferenceTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard = true)
+    
+    protected virtual void BuildReferenceTypeMapping<T>(EdmPrimitiveTypeKind primitiveKind, bool isStandard = true)
         where T : class
     {
         BuildTypeMapping<T>(primitiveKind, isStandard);

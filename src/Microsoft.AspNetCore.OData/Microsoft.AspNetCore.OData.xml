@@ -2081,6 +2081,21 @@
             Item2 --> nullable
             </summary>
         </member>
+        <member name="M:Microsoft.AspNetCore.OData.Edm.DefaultODataTypeMapper.#ctor">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Edm.DefaultODataTypeMapper.RegisterDefaultMappings">
+            <summary>
+            Registers the default primitive type mappings.
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Edm.DefaultODataTypeMapper.RegisterNonStandardMappings">
+            <summary>
+            Registers the non-standard primitive type mappings.
+            </summary>
+        </member>
         <member name="M:Microsoft.AspNetCore.OData.Edm.DefaultODataTypeMapper.GetEdmPrimitiveType(System.Type)">
             <summary>
             Gets the corresponding Edm primitive type <see cref="T:Microsoft.OData.Edm.IEdmPrimitiveTypeReference"/> for a given <see cref="T:System.Type"/> type.
@@ -2132,13 +2147,6 @@
             <summary>
             The extensions used to map between C# types and Edm types.
             </summary>
-        </member>
-        <member name="M:Microsoft.AspNetCore.OData.Edm.EdmClrTypeMapExtensions.GetEdmPrimitiveTypeReference(System.Type)">
-            <summary>
-            Gets the corresponding Edm primitive type <see cref="T:Microsoft.OData.Edm.IEdmPrimitiveTypeReference"/> for a given <see cref="T:System.Type"/> type.
-            </summary>
-            <param name="clrType">The given CLR type.</param>
-            <returns>Null or the Edm primitive type.</returns>
         </member>
         <member name="M:Microsoft.AspNetCore.OData.Edm.EdmClrTypeMapExtensions.GetEdmPrimitiveTypeReference(Microsoft.OData.Edm.IEdmModel,System.Type)">
             <summary>
@@ -2421,12 +2429,19 @@
             <param name="enableCaseInsensitive">Enable case insensitive</param>
             <returns>Null or the found navigation source.</returns>
         </member>
-        <member name="M:Microsoft.AspNetCore.OData.Edm.EdmModelExtensions.IsEnumOrCollectionEnum(Microsoft.OData.Edm.IEdmTypeReference)">
+        <member name="M:Microsoft.AspNetCore.OData.Edm.EdmModelExtensions.IsPrimitiveOrCollectionOfPrimitive(Microsoft.OData.Edm.IEdmTypeReference)">
             <summary>
-            Tests type reference is enum or collection enum
+            Checks if type reference is a primitive or a collection of primitives.
             </summary>
-            <param name="edmType"></param>
-            <returns></returns>
+            <param name="edmType">The EDM type reference to check.</param>
+            <returns><c>true</c> if the EDM type reference is a primitive or a collection of primitives; otherwise, <c>false</c>.</returns>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Edm.EdmModelExtensions.IsEnumOrCollectionOfEnum(Microsoft.OData.Edm.IEdmTypeReference)">
+            <summary>
+            Checks if type reference is an enum or a collection of enums.
+            </summary>
+            <param name="edmType">The EDM type reference to check.</param>
+            <returns><c>true</c> if the EDM type reference is an enum or a collection of enums; otherwise, <c>false</c>.</returns>
         </member>
         <member name="M:Microsoft.AspNetCore.OData.Edm.EdmModelExtensions.FindTypeInInheritance(Microsoft.OData.Edm.IEdmStructuredType,Microsoft.OData.Edm.IEdmModel,System.String,System.Boolean)">
             <summary>
@@ -3835,6 +3850,19 @@
             <param name="elementType">The element type of the parent resource set being read.</param>
             <param name="readContext">The deserializer context.</param>
             <returns>The deserialized resource set object.</returns>
+        </member>
+        <member name="T:Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataSpatialDeserializer">
+            <summary>
+            Represents an <see cref="T:Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataDeserializer"/> that can read OData spatial types.
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataSpatialDeserializer.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataSpatialDeserializer"/> class.
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataSpatialDeserializer.ReadInline(System.Object,Microsoft.OData.Edm.IEdmTypeReference,Microsoft.AspNetCore.OData.Formatter.Deserialization.ODataDeserializerContext)">
+            <inheritdoc />
         </member>
         <member name="M:Microsoft.AspNetCore.OData.Formatter.EdmLibHelper.GetExpectedPayloadType(System.Type,Microsoft.OData.UriParser.ODataPath,Microsoft.OData.Edm.IEdmModel)">
             <summary>
@@ -5419,6 +5447,16 @@
         </member>
         <member name="M:Microsoft.AspNetCore.OData.Formatter.Serialization.ODataServiceDocumentSerializer.WriteObjectAsync(System.Object,System.Type,Microsoft.OData.ODataMessageWriter,Microsoft.AspNetCore.OData.Formatter.Serialization.ODataSerializerContext)">
             <inheritdoc/>
+        </member>
+        <member name="T:Microsoft.AspNetCore.OData.Formatter.Serialization.ODataSpatialSerializer">
+            <summary>
+            Represents an <see cref="T:Microsoft.AspNetCore.OData.Formatter.Serialization.ODataSerializer"/> for serializing spatial types.
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OData.Formatter.Serialization.ODataSpatialSerializer.#ctor">
+            <summary>
+            Initializes a new instance of <see cref="T:Microsoft.AspNetCore.OData.Formatter.Serialization.ODataSpatialSerializer"/>.
+            </summary>
         </member>
         <member name="T:Microsoft.AspNetCore.OData.Formatter.Serialization.SelectExpandNode">
             <summary>

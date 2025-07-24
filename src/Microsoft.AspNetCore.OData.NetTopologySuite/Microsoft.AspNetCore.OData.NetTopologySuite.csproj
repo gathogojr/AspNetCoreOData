@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DocumentationFile>$(OutputPath)$(AssemblyName).xml</DocumentationFile>
+    <!-- Let's generate our own assembly info -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyTitle>Microsoft.AspNetCore.OData.NetTopologySuite</AssemblyTitle>
+    <Description>Microsoft.AspNetCore.OData.NetTopologySuite provides support for NetTopologySuite geometry types in ASP.NET Core OData.</Description>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Common\GeographyAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Microsoft.AspNetCore.OData\Microsoft.AspNetCore.OData.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Microsoft.AspNetCore.OData.NetTopologySuite.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\SRResources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>SRResources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\SRResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>SRResources.Designer.cs</LastGenOutput>
+      <CustomToolNamespace>Microsoft.AspNetCore.OData.NetTopologySuite</CustomToolNamespace>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Attributes\" />
+  </ItemGroup>
+
+  <Target Name="SetNuspecProperties" BeforeTargets="GenerateNuspec">
+    <PropertyGroup>
+      <NuspecProperties>ProductRoot=$(productBinPath);VersionNuGetSemantic=$(VersionNuGetSemantic)</NuspecProperties>
+      <NuspecProperties>$(NuspecProperties);NightlyBuildVersion=$(NightlyBuildVersion)</NuspecProperties>
+      <NuspecProperties>$(NuspecProperties);SourcesRoot=$(SourcesRoot)</NuspecProperties>
+    </PropertyGroup>
+  </Target>
+
+</Project>
